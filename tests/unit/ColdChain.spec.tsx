@@ -241,7 +241,7 @@ describe('Cold-Chain Logistics System (Features 1 - 4)', () => {
 
       // Verify incident logged with start timestamp and peak temp
       const incidents = manager.getIncidents(consignment.id);
-      expect(incidents.length).toBe(1);
+      expect(incidents).toHaveLength(1);
       expect(incidents[0].peakTemperatureC).toBe(12.2);
       expect(incidents[0].isActive).toBe(true);
 
@@ -257,7 +257,7 @@ describe('Cold-Chain Logistics System (Features 1 - 4)', () => {
       expect(incidents[0].durationSeconds).toBeGreaterThanOrEqual(1);
 
       // Telemetry history accessible
-      expect(manager.getTelemetry(consignment.id).length).toBe(4);
+      expect(manager.getTelemetry(consignment.id)).toHaveLength(4);
       expect(manager.getIncidents().length).toBeGreaterThan(0);
     });
 
@@ -447,7 +447,7 @@ describe('Cold-Chain Logistics System (Features 1 - 4)', () => {
       expect(pod.podId).toMatch(/^POD-\d{5}$/);
       expect(pod.recipientName).toBe('Dr. Jennifer Hall');
       expect(pod.recipientJobTitle).toBe('Chief Radiopharmacist');
-      expect(pod.temperatureGraph.length).toBe(2);
+      expect(pod.temperatureGraph).toHaveLength(2);
       expect(pod.temperatureGraph[0].tempC).toBe(-18.0);
       expect(consignment.status).toBe('Delivered');
       expect(consignment.deliveredAt).toBeDefined();

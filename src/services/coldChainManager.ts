@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import {
   BreachIncident,
   Consignment,
@@ -13,6 +14,15 @@ import {
   INITIAL_DRIVERS,
   INITIAL_VEHICLES,
 } from '../data/mockData';
+
+export function secureRandomInt(min: number, max: number): number {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomInt === 'function') {
+    return crypto.randomInt(min, max + 1);
+  }
+  const array = new Uint32Array(1);
+  globalThis.crypto.getRandomValues(array);
+  return min + (array[0] % (max - min + 1));
+}
 
 export function calculateDistanceMeters(
   lat1: number,
@@ -96,7 +106,7 @@ export class ColdChainManager {
     }
 
     // 2. Auto-generate an immutable tracking identifier in the format TRK-XXXXX
-    const randomCode = Math.floor(10000 + Math.random() * 90000);
+    const randomCode = secureRandomInt(10000, 99999);
     const trackingNumber = `TRK-${randomCode}`;
     const id = `shp-${Date.now()}-${randomCode}`;
 
@@ -184,7 +194,7 @@ export class ColdChainManager {
     vehicle.currentWeightKg += consignment.weightKg;
     driver.activeRoutesCount += 1;
 
-    const manifestCode = Math.floor(10000 + Math.random() * 90000);
+    const manifestCode = secureRandomInt(10000, 99999);
     const manifest: LoadingManifest = {
       manifestId: `MNF-${manifestCode}`,
       vehicleId: vehicle.id,
@@ -219,7 +229,7 @@ export class ColdChainManager {
       payload.temp_c > consignment.maxTempC;
 
     const reading: TelemetryReading = {
-      id: `tel-${Date.now()}-${Math.random()}`,
+      id: `tel-${Date.now()}-${secureRandomInt(1000, 9999)}`,
       shipmentId: consignment.id,
       lat: payload.lat,
       lng: payload.lng,
@@ -266,7 +276,7 @@ export class ColdChainManager {
         );
         if (!activeIncident) {
           const newIncident: BreachIncident = {
-            id: `INC-${Math.floor(10000 + Math.random() * 90000)}`,
+            id: `INC-${secureRandomInt(10000, 99999)}`,
             shipmentId: consignment.id,
             startTimestamp: timestamp,
             peakTemperatureC: payload.temp_c,
@@ -338,7 +348,7 @@ export class ColdChainManager {
     }
 
     // 2. Generate a 6-digit OTP on arrival
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otp = secureRandomInt(100000, 999999).toString();
     consignment.currentOtp = otp;
     consignment.failedOtpAttempts = 0;
     consignment.status = 'Arrived_At_Destination';
@@ -425,7 +435,7 @@ export class ColdChainManager {
       (i) => i.shipmentId === consignment.id,
     ).length;
 
-    const podCode = Math.floor(10000 + Math.random() * 90000);
+    const podCode = secureRandomInt(10000, 99999);
     const receipt: PodReceipt = {
       podId: `POD-${podCode}`,
       shipmentId: consignment.id,
