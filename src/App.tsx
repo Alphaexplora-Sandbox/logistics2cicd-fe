@@ -842,8 +842,12 @@ export function App({
               <p style={{ margin: '0.25rem 0', fontSize: '0.85rem' }}>Signatory: {podReceipt.recipientName} ({podReceipt.recipientJobTitle})</p>
               <p style={{ margin: '0.25rem 0', fontSize: '0.85rem' }}>Embedded Temperature Readings: {podReceipt.temperatureGraph.length} data point(s)</p>
               <div style={{ marginTop: '0.5rem', background: '#0f172a', padding: '0.5rem', borderRadius: '4px' }}>
-                <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Digital Signature Vector:</span>
-                <div dangerouslySetInnerHTML={{ __html: podReceipt.signatureData }} />
+                <img
+                  data-testid="pod-signature"
+                  src={podReceipt.signatureData.startsWith('data:') ? podReceipt.signatureData : `data:image/svg+xml;utf8,${encodeURIComponent(podReceipt.signatureData)}`}
+                  alt="Recipient Digital Signature"
+                  style={{ maxWidth: '200px', height: '40px', display: 'block' }}
+                />
               </div>
             </div>
           )}

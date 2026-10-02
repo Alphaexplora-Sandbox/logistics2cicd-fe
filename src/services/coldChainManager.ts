@@ -79,16 +79,16 @@ export class ColdChainManager {
     if (
       form.originLat === undefined ||
       form.originLat === null ||
-      isNaN(form.originLat) ||
+      Number.isNaN(form.originLat) ||
       form.originLng === undefined ||
       form.originLng === null ||
-      isNaN(form.originLng) ||
+      Number.isNaN(form.originLng) ||
       form.destLat === undefined ||
       form.destLat === null ||
-      isNaN(form.destLat) ||
+      Number.isNaN(form.destLat) ||
       form.destLng === undefined ||
       form.destLng === null ||
-      isNaN(form.destLng)
+      Number.isNaN(form.destLng)
     ) {
       throw new Error('Validation failed: Required coordinates are missing.');
     }
@@ -250,11 +250,22 @@ export class ColdChainManager {
       consignment.status = 'In_Transit';
     }
 
-    // 4. Dynamically update remaining transit ETA based on latest coordinates and route progress
+    this.updateTransitEta(consignment, payload.lat, payload.lng);
+
+    if (isOutOfTolerance) {
+      this.processTelemetryBreach(consignment, payload.temp_c, timestamp);
+    } else {
+      this.processTelemetryNormalization(consignment, timestamp);
+    }
+
+    return reading;
+  }
+
+  private updateTransitEta(consignment: Consignment, lat: number, lng: number): void {
     if (consignment.destLat && consignment.destLng) {
       const remainingMeters = calculateDistanceMeters(
-        payload.lat,
-        payload.lng,
+        lat,
+        lng,
         consignment.destLat,
         consignment.destLng,
       );
@@ -262,58 +273,56 @@ export class ColdChainManager {
       // 50 km/h avg speed = 833.33 meters/min
       consignment.etaMinutes = Math.max(1, Math.ceil(remainingMeters / 833.33));
     }
+  }
 
-    // 2. Trigger an alert and set state to Temperature_Breach when temperature stays out of tolerance for 2 consecutive readings
-    if (isOutOfTolerance) {
-      consignment.consecutiveBreachCount += 1;
-
-      if (consignment.consecutiveBreachCount >= 2) {
-        consignment.status = 'Temperature_Breach';
-
-        // 3. Log breach incidents with start timestamp, peak temperature, and duration until normalization
-        const activeIncident = this.incidents.find(
-          (i) => i.shipmentId === consignment.id && i.isActive,
-        );
-        if (!activeIncident) {
-          const newIncident: BreachIncident = {
-            id: `INC-${secureRandomInt(10000, 99999)}`,
-            shipmentId: consignment.id,
-            startTimestamp: timestamp,
-            peakTemperatureC: payload.temp_c,
-            isActive: true,
-          };
-          this.incidents.unshift(newIncident);
-        } else {
-          activeIncident.peakTemperatureC = Math.max(
-            activeIncident.peakTemperatureC,
-            payload.temp_c,
-          );
-        }
-      }
-    } else {
-      // Temperature normalized
-      consignment.consecutiveBreachCount = 0;
-
-      const activeIncident = this.incidents.find(
-        (i) => i.shipmentId === consignment.id && i.isActive,
-      );
-      if (activeIncident) {
-        activeIncident.normalizedTimestamp = timestamp;
-        const startMs = new Date(activeIncident.startTimestamp).getTime();
-        const normMs = new Date(timestamp).getTime();
-        activeIncident.durationSeconds = Math.max(
-          1,
-          Math.round((normMs - startMs) / 1000),
-        );
-        activeIncident.isActive = false;
-      }
-
-      if (consignment.status === 'Temperature_Breach') {
-        consignment.status = 'In_Transit';
-      }
+  private processTelemetryBreach(consignment: Consignment, tempC: number, timestamp: string): void {
+    consignment.consecutiveBreachCount += 1;
+    if (consignment.consecutiveBreachCount < 2) {
+      return;
     }
 
-    return reading;
+    consignment.status = 'Temperature_Breach';
+
+    const activeIncident = this.incidents.find(
+      (i) => i.shipmentId === consignment.id && i.isActive,
+    );
+    if (!activeIncident) {
+      const newIncident: BreachIncident = {
+        id: `INC-${secureRandomInt(10000, 99999)}`,
+        shipmentId: consignment.id,
+        startTimestamp: timestamp,
+        peakTemperatureC: tempC,
+        isActive: true,
+      };
+      this.incidents.unshift(newIncident);
+    } else {
+      activeIncident.peakTemperatureC = Math.max(
+        activeIncident.peakTemperatureC,
+        tempC,
+      );
+    }
+  }
+
+  private processTelemetryNormalization(consignment: Consignment, timestamp: string): void {
+    consignment.consecutiveBreachCount = 0;
+
+    const activeIncident = this.incidents.find(
+      (i) => i.shipmentId === consignment.id && i.isActive,
+    );
+    if (activeIncident) {
+      activeIncident.normalizedTimestamp = timestamp;
+      const startMs = new Date(activeIncident.startTimestamp).getTime();
+      const normMs = new Date(timestamp).getTime();
+      activeIncident.durationSeconds = Math.max(
+        1,
+        Math.round((normMs - startMs) / 1000),
+      );
+      activeIncident.isActive = false;
+    }
+
+    if (consignment.status === 'Temperature_Breach') {
+      consignment.status = 'In_Transit';
+    }
   }
 
   // FEATURE 4: Geofenced delivery handoff & digital proof of delivery (POD)
