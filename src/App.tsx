@@ -10,6 +10,12 @@ export interface AppProps {
   initialPod?: PodReceipt | null;
   initialError?: string | null;
   initialSuccess?: string | null;
+  initialDriverLat?: number;
+  initialDriverLng?: number;
+}
+
+export function getErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 export const AppActions = {
@@ -45,7 +51,7 @@ export const AppActions = {
       const created = manager.registerConsignment(form);
       setSuccess(`Consignment registered successfully! Generated Tracking ID: ${created.trackingNumber} [Initial State: ${created.status}]`);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(getErrorMessage(err));
     }
   },
 
@@ -69,7 +75,7 @@ export const AppActions = {
       const manifest = manager.assignFleet(consignmentId, vehicleId, driverId);
       setManifest(manifest);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(getErrorMessage(err));
     }
   },
 
@@ -97,7 +103,7 @@ export const AppActions = {
         setMessage(`Telemetry ingested. Temp: ${reading.tempC}°C. Remaining ETA: ${updated?.etaMinutes ?? 'N/A'} mins.`);
       }
     } catch (err: unknown) {
-      setMessage(err instanceof Error ? err.message : String(err));
+      setMessage(getErrorMessage(err));
     }
   },
 
@@ -113,7 +119,7 @@ export const AppActions = {
       const updated = manager.recordArrival(shipmentId, lat, lng);
       setMessage(`Driver arrived. 6-Digit OTP Generated: ${updated.currentOtp}`);
     } catch (err: unknown) {
-      setMessage(err instanceof Error ? err.message : String(err));
+      setMessage(getErrorMessage(err));
     }
   },
 
@@ -144,7 +150,7 @@ export const AppActions = {
       );
       setPod(pod);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(getErrorMessage(err));
     }
   },
 };
@@ -198,36 +204,14 @@ export const createAppInputHandlers = (
     setActiveTab?: (tab: 'intake' | 'dispatch' | 'telemetry' | 'delivery') => void;
   },
 ) => ({
-  handleDescriptionChange: (val: string) => state.setIntakeForm((f) => ({ ...f, itemDescription: val })),
-  handleMinTempChange: (val: number) => state.setIntakeForm((f) => ({ ...f, minTempC: val })),
-  handleMaxTempChange: (val: number) => state.setIntakeForm((f) => ({ ...f, maxTempC: val })),
-  handleWeightChange: (val: number) => state.setIntakeForm((f) => ({ ...f, weightKg: val })),
-  handleUrgencyChange: (val: 'Standard' | 'Expedited' | 'Life-Critical') => state.setIntakeForm((f) => ({ ...f, urgency: val })),
-  handlePhoneChange: (val: string) => state.setIntakeForm((f) => ({ ...f, recipientPhone: val })),
-  handleEmailChange: (val: string) => state.setIntakeForm((f) => ({ ...f, recipientEmail: val })),
-  handlePriorityFilterChange: (val: string) => state.setPriorityFilter(val),
-  handleConsignmentSelectChange: (val: string) => state.setSelectedConsignmentId(val),
-  handleVehicleSelectChange: (val: string) => state.setSelectedVehicleId(val),
-  handleDriverSelectChange: (val: string) => state.setSelectedDriverId(val),
-  handleTelemetryShipmentChange: (val: string) => state.setTelemetryShipmentId(val),
-  handleTelemetryTempChange: (val: number) => state.setTelemetryTemp(val),
-  handleTelemetryLatChange: (val: number) => state.setTelemetryLat(val),
-  handleTelemetryLngChange: (val: number) => state.setTelemetryLng(val),
-  handleDeliveryShipmentChange: (val: string) => state.setDeliveryShipmentId(val),
-  handleDriverLatChange: (val: number) => state.setDriverGpsLat(val),
-  handleDriverLngChange: (val: number) => state.setDriverGpsLng(val),
-  handleOtpChange: (val: string) => state.setEnteredOtp(val),
-  handleRecipientNameChange: (val: string) => state.setRecipientName(val),
-  handleRecipientTitleChange: (val: string) => state.setRecipientJobTitle(val),
-  handleSignatureChange: (val: string) => state.setSignatureData(val),
   onTabIntake: () => setters.setActiveTab?.('intake'),
   onTabDispatch: () => setters.setActiveTab?.('dispatch'),
   onTabTelemetry: () => setters.setActiveTab?.('telemetry'),
   onTabDelivery: () => setters.setActiveTab?.('delivery'),
   onDescriptionChange: (e: React.ChangeEvent<HTMLInputElement>) => state.setIntakeForm((f) => ({ ...f, itemDescription: e.target.value })),
-  onMinTempChange: (e: React.ChangeEvent<HTMLInputElement>) => state.setIntakeForm((f) => ({ ...f, minTempC: parseFloat(e.target.value) || 0 })),
-  onMaxTempChange: (e: React.ChangeEvent<HTMLInputElement>) => state.setIntakeForm((f) => ({ ...f, maxTempC: parseFloat(e.target.value) || 0 })),
-  onWeightChange: (e: React.ChangeEvent<HTMLInputElement>) => state.setIntakeForm((f) => ({ ...f, weightKg: parseFloat(e.target.value) || 0 })),
+  onMinTempChange: (e: React.ChangeEvent<HTMLInputElement>) => state.setIntakeForm((f) => ({ ...f, minTempC: Number(e.target.value) })),
+  onMaxTempChange: (e: React.ChangeEvent<HTMLInputElement>) => state.setIntakeForm((f) => ({ ...f, maxTempC: Number(e.target.value) })),
+  onWeightChange: (e: React.ChangeEvent<HTMLInputElement>) => state.setIntakeForm((f) => ({ ...f, weightKg: Number(e.target.value) })),
   onUrgencyChange: (e: React.ChangeEvent<HTMLSelectElement>) => state.setIntakeForm((f) => ({ ...f, urgency: e.target.value as 'Standard' | 'Expedited' | 'Life-Critical' })),
   onPhoneChange: (e: React.ChangeEvent<HTMLInputElement>) => state.setIntakeForm((f) => ({ ...f, recipientPhone: e.target.value })),
   onEmailChange: (e: React.ChangeEvent<HTMLInputElement>) => state.setIntakeForm((f) => ({ ...f, recipientEmail: e.target.value })),
@@ -236,12 +220,12 @@ export const createAppInputHandlers = (
   onVehicleSelectChange: (e: React.ChangeEvent<HTMLSelectElement>) => state.setSelectedVehicleId(e.target.value),
   onDriverSelectChange: (e: React.ChangeEvent<HTMLSelectElement>) => state.setSelectedDriverId(e.target.value),
   onTelemetryShipmentChange: (e: React.ChangeEvent<HTMLSelectElement>) => state.setTelemetryShipmentId(e.target.value),
-  onTelemetryTempChange: (e: React.ChangeEvent<HTMLInputElement>) => state.setTelemetryTemp(parseFloat(e.target.value) || 0),
-  onTelemetryLatChange: (e: React.ChangeEvent<HTMLInputElement>) => state.setTelemetryLat(parseFloat(e.target.value) || 0),
-  onTelemetryLngChange: (e: React.ChangeEvent<HTMLInputElement>) => state.setTelemetryLng(parseFloat(e.target.value) || 0),
+  onTelemetryTempChange: (e: React.ChangeEvent<HTMLInputElement>) => state.setTelemetryTemp(Number(e.target.value)),
+  onTelemetryLatChange: (e: React.ChangeEvent<HTMLInputElement>) => state.setTelemetryLat(Number(e.target.value)),
+  onTelemetryLngChange: (e: React.ChangeEvent<HTMLInputElement>) => state.setTelemetryLng(Number(e.target.value)),
   onDeliveryShipmentChange: (e: React.ChangeEvent<HTMLSelectElement>) => state.setDeliveryShipmentId(e.target.value),
-  onDriverLatChange: (e: React.ChangeEvent<HTMLInputElement>) => state.setDriverGpsLat(parseFloat(e.target.value) || 0),
-  onDriverLngChange: (e: React.ChangeEvent<HTMLInputElement>) => state.setDriverGpsLng(parseFloat(e.target.value) || 0),
+  onDriverLatChange: (e: React.ChangeEvent<HTMLInputElement>) => state.setDriverGpsLat(Number(e.target.value)),
+  onDriverLngChange: (e: React.ChangeEvent<HTMLInputElement>) => state.setDriverGpsLng(Number(e.target.value)),
   onOtpChange: (e: React.ChangeEvent<HTMLInputElement>) => state.setEnteredOtp(e.target.value),
   onRecipientNameChange: (e: React.ChangeEvent<HTMLInputElement>) => state.setRecipientName(e.target.value),
   onRecipientTitleChange: (e: React.ChangeEvent<HTMLInputElement>) => state.setRecipientJobTitle(e.target.value),
@@ -264,6 +248,14 @@ export const createAppInputHandlers = (
   },
 });
 
+const STATUS_COLORS: Record<string, string> = {
+  Awaiting_Assignment: '#ca8a04',
+  Assigned: '#2563eb',
+  In_Transit: '#0284c7',
+  Temperature_Breach: '#dc2626',
+  Delivered: '#16a34a',
+};
+
 export function App({
   title = 'logistics2cicd-frontend',
   initialTab = 'intake',
@@ -272,6 +264,8 @@ export function App({
   initialPod = null,
   initialError = null,
   initialSuccess = null,
+  initialDriverLat,
+  initialDriverLng,
 }: AppProps) {
   const [manager] = useState<ColdChainManager>(() => managerInstance || new ColdChainManager());
   const [activeTab, setActiveTab] = useState<'intake' | 'dispatch' | 'telemetry' | 'delivery'>(initialTab);
@@ -314,8 +308,8 @@ export function App({
 
   // Delivery State: Feature 4
   const [deliveryShipmentId, setDeliveryShipmentId] = useState<string>('shp-sample-01');
-  const [driverGpsLat, setDriverGpsLat] = useState<number>(37.7750);
-  const [driverGpsLng, setDriverGpsLng] = useState<number>(-122.4193);
+  const [driverGpsLat, setDriverGpsLat] = useState<number>(initialDriverLat ?? 37.7750);
+  const [driverGpsLng, setDriverGpsLng] = useState<number>(initialDriverLng ?? -122.4193);
   const [enteredOtp, setEnteredOtp] = useState<string>('');
   const [recipientName, setRecipientName] = useState<string>('Dr. Evelyn Reed');
   const [recipientJobTitle, setRecipientJobTitle] = useState<string>('Director of Pharmacy');
@@ -596,11 +590,7 @@ export function App({
                           style={{
                             padding: '0.2rem 0.5rem',
                             borderRadius: '4px',
-                            background:
-                              c.status === 'Awaiting_Assignment' ? '#ca8a04' :
-                              c.status === 'Assigned' ? '#2563eb' :
-                              c.status === 'Temperature_Breach' ? '#dc2626' :
-                              c.status === 'Delivered' ? '#16a34a' : '#475569',
+                            background: STATUS_COLORS[c.status] || '#475569',
                           }}
                         >
                           {c.status}

@@ -661,7 +661,11 @@ describe('Cold-Chain Logistics System (Features 1 - 4)', () => {
           recipientEmail: 'a@b.com',
           recipientName: 'name',
         },
-        setIntakeForm: jest.fn(),
+        setIntakeForm: jest.fn((updater: unknown) => {
+          if (typeof updater === 'function') {
+            (updater as (prev: IntakeFormData) => IntakeFormData)(formState.intakeForm);
+          }
+        }),
         selectedConsignmentId: 'shp-sample-01',
         setSelectedConsignmentId: jest.fn(),
         selectedVehicleId: 'vh-cold-01',
@@ -706,29 +710,6 @@ describe('Cold-Chain Logistics System (Features 1 - 4)', () => {
 
       const handlers = createAppInputHandlers(formState, manager, setters);
 
-      handlers.handleDescriptionChange('new desc');
-      handlers.handleMinTempChange(1.0);
-      handlers.handleMaxTempChange(9.0);
-      handlers.handleWeightChange(30.0);
-      handlers.handleUrgencyChange('Life-Critical');
-      handlers.handlePhoneChange('999');
-      handlers.handleEmailChange('new@test.com');
-      handlers.handlePriorityFilterChange('Life-Critical');
-      handlers.handleConsignmentSelectChange('shp-2');
-      handlers.handleVehicleSelectChange('vh-cold-02');
-      handlers.handleDriverSelectChange('drv-02');
-      handlers.handleTelemetryShipmentChange('shp-2');
-      handlers.handleTelemetryTempChange(5.5);
-      handlers.handleTelemetryLatChange(47.61);
-      handlers.handleTelemetryLngChange(-122.32);
-      handlers.handleDeliveryShipmentChange('shp-2');
-      handlers.handleDriverLatChange(37.78);
-      handlers.handleDriverLngChange(-122.42);
-      handlers.handleOtpChange('654321');
-      handlers.handleRecipientNameChange('New Recipient');
-      handlers.handleRecipientTitleChange('New Title');
-      handlers.handleSignatureChange('new sig');
-
       // Test event-based handlers
       const mockInputEvent = (val: string) =>
         ({ target: { value: val } }) as unknown as React.ChangeEvent<HTMLInputElement>;
@@ -763,7 +744,7 @@ describe('Cold-Chain Logistics System (Features 1 - 4)', () => {
       handlers.onSignatureChange(mockInputEvent('svg-sig'));
 
       expect(formState.setIntakeForm).toHaveBeenCalled();
-      expect(formState.setSelectedConsignmentId).toHaveBeenCalledWith('shp-2');
+      expect(formState.setSelectedConsignmentId).toHaveBeenCalledWith('shp-1');
       expect(formState.setPriorityFilter).toHaveBeenCalledWith('Life-Critical');
 
       handlers.submitIntake({ preventDefault: jest.fn() });
@@ -792,19 +773,35 @@ describe('Cold-Chain Logistics System (Features 1 - 4)', () => {
         generatedAt: '2026-10-02T12:00:00Z',
       };
       const htmlDispatch = renderToString(
-        <App initialTab="dispatch" initialManifest={mockManifest} />,
+        <App initialTab="dispatch" initialManifest={mockManifest} initialError="Overloaded vehicle error" />,
       );
       expect(htmlDispatch).toContain('Feature 2: Fleet Compatibility');
       expect(htmlDispatch).toContain('MNF-99999');
+      expect(htmlDispatch).toContain('Overloaded vehicle error');
 
-      // 3. Telemetry tab
+      // 3. Telemetry tab with normal status and with incidents
       const htmlTelemetry = renderToString(
         <App initialTab="telemetry" initialError="CRITICAL ALERT: Breach" />,
       );
       expect(htmlTelemetry).toContain('Feature 3: Real-Time Telemetry');
       expect(htmlTelemetry).toContain('CRITICAL ALERT');
 
-      // 4. Delivery tab with POD receipt
+      const managerWithIncident = new ColdChainManager();
+      // Normalized incident (durationSeconds is set)
+      managerWithIncident.ingestTelemetry({ shipment_id: 'shp-sample-01', lat: 47.6, lng: -122.3, temp_c: 15.0 });
+      managerWithIncident.ingestTelemetry({ shipment_id: 'shp-sample-01', lat: 47.6, lng: -122.3, temp_c: 15.0 });
+      managerWithIncident.ingestTelemetry({ shipment_id: 'shp-sample-01', lat: 47.6, lng: -122.3, temp_c: 4.0 });
+      // Active incident (in progress, durationSeconds is undefined)
+      managerWithIncident.ingestTelemetry({ shipment_id: 'shp-sample-02', lat: 47.6, lng: -122.3, temp_c: 15.0 });
+      managerWithIncident.ingestTelemetry({ shipment_id: 'shp-sample-02', lat: 47.6, lng: -122.3, temp_c: 15.0 });
+
+      const htmlTelemetryIncidents = renderToString(
+        <App initialTab="telemetry" initialError="Telemetry recorded successfully" managerInstance={managerWithIncident} />,
+      );
+      expect(htmlTelemetryIncidents).toContain('NORMALIZED');
+      expect(htmlTelemetryIncidents).toContain('ACTIVE');
+
+      // 4. Delivery tab with POD receipt, locked state, and standard error
       const mockPod: PodReceipt = {
         podId: 'POD-88888',
         shipmentId: 'shp-sample-01',
@@ -816,21 +813,123 @@ describe('Cold-Chain Logistics System (Features 1 - 4)', () => {
         breachIncidentsCount: 0,
       };
       const htmlDelivery = renderToString(
-        <App initialTab="delivery" initialPod={mockPod} />,
+        <App initialTab="delivery" initialPod={mockPod} initialError="Standard geofence notice" />,
       );
       expect(htmlDelivery).toContain('Feature 4: Geofenced Delivery Handoff');
       expect(htmlDelivery).toContain('POD-88888');
+      expect(htmlDelivery).toContain('Standard geofence notice');
+
+      const managerLocked = new ColdChainManager();
+      managerLocked.recordArrival('shp-sample-01', 37.7749, -122.4194);
+      try { managerLocked.completeDelivery('shp-sample-01', 37.7749, -122.4194, '000000', 'Doc', 'MD', 'sig'); } catch { /* ignore */ }
+      try { managerLocked.completeDelivery('shp-sample-01', 37.7749, -122.4194, '000000', 'Doc', 'MD', 'sig'); } catch { /* ignore */ }
+      try { managerLocked.completeDelivery('shp-sample-01', 37.7749, -122.4194, '000000', 'Doc', 'MD', 'sig'); } catch { /* ignore */ }
+      const htmlDeliveryLocked = renderToString(
+        <App initialTab="delivery" initialError="Account locked after 3 failures" managerInstance={managerLocked} />,
+      );
+      expect(htmlDeliveryLocked).toContain('locked');
+
+      const htmlDeliveryOutsideGeofence = renderToString(
+        <App initialTab="delivery" initialDriverLat={0} initialDriverLng={0} />,
+      );
+      expect(htmlDeliveryOutsideGeofence).toContain('Outside Geofence');
     });
 
-    it('server generates valid HTML and handles requests', (done) => {
+    it('AppActions handles all operations and errors properly', () => {
+      const setSuccess = jest.fn();
+      const setError = jest.fn();
+      const setManifest = jest.fn();
+      const setMsg = jest.fn();
+      const setPod = jest.fn();
+
+      // Intake with missing coordinates
+      AppActions.performIntake({
+        itemDescription: '',
+        minTempC: 2,
+        maxTempC: 8,
+        weightKg: 10,
+        lengthCm: 10,
+        widthCm: 10,
+        heightCm: 10,
+        urgency: 'Standard',
+        originLat: 0,
+        originLng: 0,
+        destLat: 0,
+        destLng: 0,
+        recipientPhone: '',
+        recipientEmail: '',
+        recipientName: '',
+      }, manager, setSuccess, setError);
+      expect(setError).toHaveBeenCalledWith(expect.stringContaining('Prevented submission'));
+
+      // Intake with minTemp >= maxTemp
+      AppActions.performIntake({
+        itemDescription: 'Test',
+        minTempC: 10,
+        maxTempC: 5,
+        weightKg: 10,
+        lengthCm: 10,
+        widthCm: 10,
+        heightCm: 10,
+        urgency: 'Standard',
+        originLat: 47.6,
+        originLng: -122.3,
+        destLat: 37.7,
+        destLng: -122.4,
+        recipientPhone: '555',
+        recipientEmail: 'a@b.com',
+        recipientName: 'Nurse',
+      }, manager, setSuccess, setError);
+      expect(setError).toHaveBeenCalled();
+
+      // Dispatch without consignmentId
+      AppActions.performDispatch('', 'vh-cold-01', 'drv-01', manager, setManifest, setError);
+      expect(setError).toHaveBeenCalledWith('Please select a consignment to assign.');
+
+      // Dispatch error (non-refrigerated)
+      AppActions.performDispatch('shp-sample-01', 'vh-dry-01', 'drv-01', manager, setManifest, setError);
+      expect(setError).toHaveBeenCalled();
+
+      // Telemetry error (unknown shipment)
+      AppActions.performSendTelemetry('unknown-shp', 47.6, -122.3, 4.0, manager, setMsg);
+      expect(setMsg).toHaveBeenCalled();
+
+      // Telemetry success (normal temp)
+      AppActions.performSendTelemetry('shp-sample-01', 47.6, -122.3, 4.0, manager, setMsg);
+      expect(setMsg).toHaveBeenCalledWith(expect.stringContaining('Telemetry ingested'));
+
+      // Arrival error
+      AppActions.performRecordArrival('unknown-shp', 37.7, -122.4, manager, setMsg);
+      expect(setMsg).toHaveBeenCalled();
+
+      // Arrival success
+      AppActions.performRecordArrival('shp-sample-01', 37.7749, -122.4194, manager, setMsg);
+      expect(setMsg).toHaveBeenCalledWith(expect.stringContaining('OTP Generated'));
+
+      // Complete delivery error
+      AppActions.performCompleteDelivery('shp-sample-01', 37.7749, -122.4194, 'wrong', 'Doc', 'Title', 'sig', manager, setPod, setError);
+      expect(setError).toHaveBeenCalled();
+
+      // Complete delivery success
+      const consignment = manager.getConsignments().find((c) => c.id === 'shp-sample-01');
+      if (consignment && consignment.currentOtp) {
+        AppActions.performCompleteDelivery('shp-sample-01', 37.7749, -122.4194, consignment.currentOtp, 'Doc', 'Title', 'sig', manager, setPod, setError);
+        expect(setPod).toHaveBeenCalled();
+      }
+    });
+
+    it('server generates valid HTML and handles requests', async () => {
       const html = generateHtml();
       expect(html).toContain('<!DOCTYPE html>');
       expect(html).toContain('logistics2cicd-frontend');
 
-      // Test startServer
+      // Test startServer and listen callback
+      const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
       const server = startServer(3948);
-      expect(server).toBeDefined();
-      server.close();
+      await new Promise<void>((resolve) => setTimeout(resolve, 100));
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      expect(logSpy).toHaveBeenCalled();
+      logSpy.mockRestore();
 
       // Test root HTML page
       const reqRoot = {
@@ -847,22 +946,42 @@ describe('Cold-Chain Logistics System (Features 1 - 4)', () => {
       expect(resRoot.writeHead).toHaveBeenCalledWith(200, expect.anything());
       expect(resRoot.end).toHaveBeenCalledWith(expect.stringContaining('<!DOCTYPE html>'));
 
+      // Test fallback url and host
+      const reqFallback = {
+        url: undefined,
+        headers: {},
+      } as unknown as http.IncomingMessage;
+      handleRequest(reqFallback, resRoot);
+
+      // Test /health
+      const reqHealth = {
+        url: '/health',
+        headers: { host: 'localhost:3000' },
+      } as http.IncomingMessage;
+      const resHealth = {
+        writeHead: jest.fn(),
+        end: jest.fn(),
+      } as unknown as http.ServerResponse;
+      handleRequest(reqHealth, resHealth);
+      expect(resHealth.writeHead).toHaveBeenCalledWith(200, expect.anything());
+
       // Test /api/health
       const reqApiHealth = {
         url: '/api/health',
         headers: { host: 'localhost:3000' },
       } as http.IncomingMessage;
 
+      let apiResponse = '';
       const resApi = {
         writeHead: jest.fn(),
         end: (body: string) => {
-          const parsed = JSON.parse(body);
-          expect(parsed.status).toBe('ok');
-          done();
+          apiResponse = body;
         },
       } as unknown as http.ServerResponse;
 
       handleRequest(reqApiHealth, resApi);
+      const parsed = JSON.parse(apiResponse);
+      expect(parsed.status).toBe('ok');
     });
   });
 });
