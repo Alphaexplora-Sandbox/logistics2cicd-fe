@@ -1,0 +1,30 @@
+{
+  "name": "logistics2cicd-frontend",
+  "version": "0.1.0",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "test": "jest",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src tests",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "eslint": "^9.17.0",
+    "typescript-eslint": "^8.18.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "ts-node": "^10.9.2",
+    "@playwright/test": "^1.49.0"
+  }
+}
