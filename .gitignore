@@ -11,3 +11,4 @@ npm-debug.log*
 .turbo/
 .next/
 out/
+test-results.json
